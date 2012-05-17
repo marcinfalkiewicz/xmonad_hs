@@ -13,6 +13,8 @@ import XMonad.Config
 import XMonad.Hooks.ManageHelpers (isDialog, isFullscreen, doCenterFloat, doFullFloat, composeOne, (-?>))
 import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.SetWMName
+
+import XMonad.Hooks.EwmhDesktops
 -- layout
 import XMonad.Layout.Named
 import XMonad.Layout.IM
@@ -32,15 +34,17 @@ modKey = mod4Mask -- Super key
 
 -- core config
 main =
-    xmonad $ defaultConfig {
-          borderWidth           = 2
+    xmonad $ 
+    ewmh $
+    defaultConfig {
+          borderWidth           = 1
         , normalBorderColor     = "#C3C9C9"
-        , focusedBorderColor    = "#C93531"
+        , focusedBorderColor    = "#CCFF42"
         , terminal              = "xterm"
         , modMask               = modKey
         , workspaces            = ["1", "web" ] ++ map show [ 3 .. 8 ] ++ ["comm"]
         , layoutHook            = windowLayout
-        , manageHook            = windowManagment
+        , manageHook            = windowManagment <+> manageDocks
         , startupHook           = setWMName "LG3D" -- java compatibility
     }
     `additionalKeysP` keyBinds
@@ -48,7 +52,7 @@ main =
 
 -- windows layout
 windowLayout = 
-    --avoidStruts $
+    avoidStruts $
     onWorkspace "comm" im $
     smartBorders (tiled ||| Mirror tiled ||| noBorders Full ||| float)
         where
@@ -68,14 +72,15 @@ windowManagment = composeOne . concat $
     , className =? "Nitrogen"       -?> doFloat
     , className =? "Gimp"           -?> doFloat
 
-    , className =? "dzen2"          -?> doIgnore
+--    , className =? "dzen2"          -?> doIgnore
     , resource  =? "stalonetray"    -?> doIgnore
-    , resource  =? "xfce4-notifyd"  -?> doIgnore 
+    , resource  =? "xfce4-notifyd"  -?> doIgnore
+    , className =? "xfce4-panel"    -?> doIgnore
     , className =? "net-minecraft-MinecraftLauncher" -?> doCenterFloat
 
   ] ]
         where
-            browsers = ["Firefox", "Midori", "Namoroka", "Chrome", "Arora"]
+            browsers = ["Firefox", "Midori", "Nightly", "Chrome", "Arora"]
             ims      = ["Gajim", "Pidgin", "Kadu", "Empathy"]
             wineproc = ["Wine", "explorer.exe"]
 
@@ -85,7 +90,7 @@ promptConfig = defaultXPConfig {
       font              = "xft:Acknowledge:size=9"
     , defaultText       = ""
     , fgColor           = "#C3C9C9"
-    , fgHLight          = "#C5292D"
+    , fgHLight          = "#6dacee"
     , bgColor           = "#343434"
     , bgHLight          = "#343434"
     , promptBorderWidth = 0
@@ -99,12 +104,14 @@ promptConfig = defaultXPConfig {
 keyBinds = [
       ("M-<F1>" , safeSpawn "sudo"      ["pm-suspend"])                         -- equivalent of Fn-<F1> (for external keyboard)
     , ("M-q"    , safeSpawn "xmonad"    ["--restart"])                          -- rebuild and restart xmonad
-    , ("M-f"    , safeSpawn "firefox"   [])
+    , ("M-f"    , safeSpawn "firefox-nightly" ["-p", "nightly"])
     , ("M-S-e"  , safeSpawn "gvim"      ["/home/dweller/.xmonad/xmonad.hs"])    -- edit config
 
     , ("M-p"    , shellPrompt promptConfig)                     -- start apps
 
     , ("M-e"    , runInTerm "" "mc $HOME")
+    , ("M-m"    , runInTerm "" "ncmpc")
+    , ("M-h"    , runInTerm "" "htop")
 
     -- xmonad specific
     --
@@ -113,19 +120,26 @@ keyBinds = [
     , ("M-b"  , sendMessage ToggleStruts)
 
     -- notebook specific
-    --
+    -- lvds backlight (external keyboard)
     , ("M-S-<Up>"   , safeSpawn "xbacklight" ["-inc", "10"])
     , ("M-S-<Down>" , safeSpawn "xbacklight" ["-dec", "10"])
+    
+    -- audio buttons
+    , ("M-<Home>"   , safeSpawn "mpc" ["prev"])
+    , ("M-<End>"    , safeSpawn "mpc" ["stop"])
+    , ("M-<Insert>" , safeSpawn "mpc" ["toggle"])
+    , ("M-<Delete>" , safeSpawn "mpc" ["next"])
+
 
     ]
 
 -- xmonad notation
 keyMedia = [
-      ((0      , 0x1008ff11), spawn "amixer -q set Master 1%-")    -- XF86AudioLowerVolume
-    , ((0      , 0x1008ff13), spawn "amixer -q set Master 1%+")    -- XF86AudioRaiseVolume
-    , ((0      , 0x1008ff12), spawn "amixer -q set Master toggle") -- XF86AudioMute
-    , ((modKey , 0x1008ff11), spawn "mpc prev")                    -- mpd Prev (binded to modKey-XF86AudioLowerVolume)
-    , ((modKey , 0x1008ff13), spawn "mpc next")                    -- mpd Next (binded to modKey-XF86AudioRaiseVolume)
-    , ((modKey , 0x1008ff12), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioMute)
-    , ((0      , 0x1008ff14), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioPlay)
+--      ((0      , 0x1008ff11), spawn "amixer -q set Master 1%-")    -- XF86AudioLowerVolume
+--    , ((0      , 0x1008ff13), spawn "amixer -q set Master 1%+")    -- XF86AudioRaiseVolume
+--    , ((0      , 0x1008ff12), spawn "amixer -q set Master toggle") -- XF86AudioMute
+--      ((modKey , 0x1008ff11), spawn "mpc prev")                    -- mpd Prev (binded to modKey-XF86AudioLowerVolume)
+--    , ((modKey , 0x1008ff13), spawn "mpc next")                    -- mpd Next (binded to modKey-XF86AudioRaiseVolume)
+--    , ((modKey , 0x1008ff12), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioMute)
+--    , ((0      , 0x1008ff14), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioPlay)
     ]
