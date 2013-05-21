@@ -1,0 +1,36 @@
+Config {
+    font = "xft:PF Tempesta Five:size=5"
+--    font = "xft:PhatBoy Slim:size=5"
+--    font = "xft:peep"
+--    font = "-*-droid sans mono-*-r-normal-*-11-*-*-*-*-*-iso10646-1"
+    , borderColor = "black"
+    , border = NoBorder
+    , bgColor = "#07171F"
+    , fgColor = "#FEFEFE"
+    , position = TopSize C 100 16
+    , lowerOnStart = True
+    , hideOnStart = False
+    , persistent = True
+    , commands = [
+          Run StdinReader
+--        , Run Com "uname" ["-s","-r"] "" 36000
+--        , Run Com "~/.xmobar/mpd-status" [] "mpd" 10
+        , Run ThermalZone 0 ["-t","<temp><fc=#00BFFE>°C</fc>"] 100
+        , Run Date "%d <fc=#BFFE00>%b</fc> %y, %H:%M" "date" 600
+        , Run BatteryP ["BAT0"] ["-t", "<fc=#E34E25><acstatus></fc> <left>%", "--", "-O", "AC", "-o", "BT" ] 1500
+--        , Run Com "echo `sysctl -n hw.acpi.battery.life`%" [] "battery" 60
+--        , Run Com "echo `sysctl -n dev.cpu.0.freq`MHz" [] "cpufreq" 100
+--        , Run Com "echo `sysctl -n hw.acpi.thermal.tz0.temperature`" [] "thermalzone" 100
+--        , Run Com "echo `awk '{ print $1 / 1000 }' /sys/class/hwmon/hwmon1/temp1_input`C" [] "thermalzone" 1500
+        , Run Com "sh ~/.xmobar/acpiconf" [] "battery_rate" 100
+        , Run Weather "EPPO" ["-t", "<fc=#00BFFE><station></fc> <tempC>C"] 9000
+        , Run Com "sh ~/.xmobar/nvidia" [] "nvidia" 300
+--        , Run Com "echo `mixer | awk '/vol/ { print $7 }' | sed -e 's/:/ /'`" [] "volume" 5
+--        , Run Uptime ["-t", "<days><fc=#FEE719>days</fc><hours><fc=#E34E25>hours</fc><minutes><fc=#E34E25>minutes</fc>"] 60
+    ]
+    , sepChar = "%"
+    , alignSep = "||"
+    , template = "%StdinReader% || %nvidia%   %EPPO%   %battery%   %battery_rate%   %thermal0%   %date%"
+}
+
+-- vim:ft=haskell
