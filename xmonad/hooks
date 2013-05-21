@@ -1,0 +1,9 @@
+#!/bin/sh
+
+startup()
+{
+    xmodmap ~/.Xmodmap
+    numlockx on
+}
+
+$1
