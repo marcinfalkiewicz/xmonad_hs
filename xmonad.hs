@@ -1,145 +1,213 @@
--- xmonad >>=
+--  xmonad >>=
 --
--- deps:
---  xmonad
---  xmonad-contrib
+--  deps:
+--      xmonad
+--      xmonad-contrib
 --
+--  vim:ft=haskell
 
 -- core
 import XMonad
 import XMonad.Config
-
+import qualified XMonad.StackSet
 -- window managment
-import XMonad.Hooks.ManageHelpers (isDialog, isFullscreen, doCenterFloat, doFullFloat, composeOne, (-?>))
+import XMonad.Hooks.ManageHelpers (isDialog, isFullscreen, isInProperty,
+                                doCenterFloat, doFullFloat, composeOne, (-?>))
 import XMonad.Hooks.ManageDocks
 import XMonad.Hooks.SetWMName
 
+import XMonad.Hooks.DynamicLog
+import XMonad.Hooks.UrgencyHook
 import XMonad.Hooks.EwmhDesktops
+import XMonad.Hooks.ICCCMFocus
+import XMonad.Hooks.Script
+import XMonad.Hooks.Minimize
+
+import XMonad.Actions.UpdateFocus
+
 -- layout
 import XMonad.Layout.Named
+import XMonad.Layout.TrackFloating
+
 import XMonad.Layout.IM
 import XMonad.Layout.Reflect (reflectHoriz)
 import XMonad.Layout.Grid
+import XMonad.Layout.Minimize
 import XMonad.Layout.PerWorkspace (onWorkspace)
 import XMonad.Layout.SimplestFloat
 import XMonad.Layout.NoBorders (smartBorders, noBorders)
+
 -- prompt
 import XMonad.Prompt
 import XMonad.Prompt.Shell
+import XMonad.Prompt.Ssh
 -- keys
 import XMonad.Util.EZConfig
 import XMonad.Util.Run (safeSpawn, runInTerm)
+import XMonad.Actions.CycleWS
 
+import Data.Monoid (mconcat) -- merge multiple event hooks
+
+termEmulator = "urxvtc"
 modKey = mod4Mask -- Super key
+toggleStrutsKey XConfig {XMonad.modMask = mod4Mask} = (mod4Mask, xK_b)
 
 -- core config
-main =
-    xmonad $ 
-    ewmh $
-    defaultConfig {
+main = do
+    xmonad =<< statusBar "xmobar" statusBarPP toggleStrutsKey conf
+
+conf =
+    withUrgencyHook NoUrgencyHook $
+    ewmh $ defaultConfig {
           borderWidth           = 1
-        , normalBorderColor     = "#C3C9C9"
-        , focusedBorderColor    = "#CCFF42"
-        , terminal              = "xterm"
+        , normalBorderColor     = "#0C4D48"
+        , focusedBorderColor    = "#00BFFE"
+        , terminal              = termEmulator
         , modMask               = modKey
-        , workspaces            = ["1", "web" ] ++ map show [ 3 .. 8 ] ++ ["comm"]
+        , workspaces            = ["irc", "web" ] ++ map show [ 3 .. 8 ] ++ ["comm", "steam", "gimp"]
+        , startupHook           = mconcat
+                                    [ execScriptHook "startup"
+                                    , adjustEventInput ]
         , layoutHook            = windowLayout
-        , manageHook            = windowManagment <+> manageDocks
-        , startupHook           = setWMName "LG3D" -- java compatibility
+        , manageHook            = mconcat
+                                    [ windowManagment
+                                    , manageDocks ]
+        , logHook               = mconcat
+                                    [ takeTopFocus ]
+        , handleEventHook       = mconcat
+                                    [ fullscreenEventHook
+                                    , minimizeEventHook
+                                    , focusOnMouseMove ]
     }
-    `additionalKeysP` keyBinds
-    `additionalKeys`  keyMedia
+    `additionalKeysP`   keyBinds
 
--- windows layout
-windowLayout = 
-    avoidStruts $
-    onWorkspace "comm" im $
-    smartBorders (tiled ||| Mirror tiled ||| noBorders Full ||| float)
+-- windows layout -- layout [nmaster] [delta] [ratio]
+windowLayout =
+    avoidStruts     $ smartBorders  $ trackFloating $
+    onWorkspace "comm" im           $
+    onWorkspace "steam" float       $
+    onWorkspace "gimp" gimp         $
+    tiled ||| mirror ||| full ||| float
         where
-            im    = named "IM"    $ reflectHoriz $ noBorders (gridIM (1/5) (And (ClassName ("Gajim")) (Role "roster")))  -- instant messenger -- modifier (modifier [ratio] [class])
-            tiled = named "Tile"  $ Tall 1 (5/100) (1/2)    -- tiling -- layout [nmaster] [delta] [ratio]
-            float = named "Float" $ simplestFloat           -- float
-
+            im    = named "IM"    $ reflectHoriz $ noBorders
+                (gridIM (1/5) (And (ClassName ("Gajim")) (Role "roster")))
+            tiled   = named "<icon=/home/dweller/.xmobar/icons/tall.xbm/>"  $
+                Tall 1 (5/100) (1/2)
+            mirror  = named "<icon=/home/dweller/.xmobar/icons/mirror.xbm/>" $
+                Mirror tiled
+            full    = named "<icon=/home/dweller/.xmobar/icons/full.xbm/>"  $
+                noBorders Full
+            float   = named "<icon=/home/dweller/.xmobar/icons/float.xbm/>" $
+                simplestFloat
+            gimp    = named "gimp" $ withIM (1/5) (Role "gimp-toolbox") $
+                reflectHoriz $ withIM (1/5) (Role "gimp-dock") Full
 
 windowManagment = composeOne . concat $
-  [ [ className =? browser          -?> doShift "web"   | browser   <- browsers ],
-    [ className =? im               -?> doShift "comm"  | im        <- ims      ],
-    [ className =? wine             -?> doCenterFloat   | wine      <- wineproc ],
+  [ [ className =? browser          -?> doShift "web"   | browser   <- browsers     ],
+    [ className =? im               -?> doShift "comm"  | im        <- ims          ],
+    [ className =? graphics         -?> doShift "8"     | graphics  <- imageproc    ],
+
+    -- firefox specific
+    [ title     =? firefox          -?> doFloat         | firefox   <- fxdialog     ],
+
     [ isFullscreen                  -?> doFullFloat
     , isDialog                      -?> doCenterFloat
-    , className =? "MPlayer"        -?> doCenterFloat
-    --, className =? "Wine"           --> doCenterFloat
-    , className =? "Nitrogen"       -?> doFloat
-    , className =? "Gimp"           -?> doFloat
 
---    , className =? "dzen2"          -?> doIgnore
+    , className =? "net-ftb-mclauncher-MinecraftLauncher" -?> doFloat
+
+    , title     =? "MPlayer"        -?> doFullFloat
+    , resource  =? "gnome-mplayer"  -?> doCenterFloat
+    , className =? "mpv"            -?> doFloat
+    , title     =? "Kerbal Space Program"   -?> doFullFloat
+    , className =? "Nitrogen"       -?> doFloat
+
+    , resource  =? "gimp"           -?> doShift "gimp"
+    , className =? "fontforge"      -?> doFloat
+
+    , resource  =? "Steam"          -?> doShift "steam"
+
     , resource  =? "stalonetray"    -?> doIgnore
-    , resource  =? "xfce4-notifyd"  -?> doIgnore
-    , className =? "xfce4-panel"    -?> doIgnore
-    , className =? "net-minecraft-MinecraftLauncher" -?> doCenterFloat
+
+    -- thunar
+    , title     =? "File Operation Progress" -?> doCenterFloat
 
   ] ]
         where
-            browsers = ["Firefox", "Midori", "Nightly", "Chrome", "Arora"]
-            ims      = ["Gajim", "Pidgin", "Kadu", "Empathy"]
-            wineproc = ["Wine", "explorer.exe"]
+            browsers    = ["Firefox", "Chrome", "Midori"]
+            ims         = ["Gajim", "Pidgin", "Kadu", "Empathy"]
+            imageproc   = ["Inkscape", "Blender"]
+            --
+            fxdialog    = ["Firefox Preferences", "About Mozilla Firefox"]
 
 -- prompt settings
 promptConfig = defaultXPConfig {
---      font              = "-*-andale mono-medium-r-*-*-10-*-*-*-*-*-iso10646-1"
-      font              = "xft:Acknowledge:size=9"
+      font              = "xft:PF Tempesta Five:size=5"
     , defaultText       = ""
-    , fgColor           = "#C3C9C9"
-    , fgHLight          = "#6dacee"
-    , bgColor           = "#343434"
-    , bgHLight          = "#343434"
+    , fgColor           = "#FEFEFE"
+    , fgHLight          = "#00BFFE"
+    , bgColor           = "#07171F"
+    , bgHLight          = "#07171F"
     , promptBorderWidth = 0
-    , position          = Top
-    , height            = 12
-    , historySize       = 16
+    , position          = Bottom
+    , height            = 16
+    , historySize       = 128
     }
+
+statusBarPP = xmobarPP {
+      ppCurrent         = xmobarColor "#00BFFE" ""
+    , ppHiddenNoWindows = xmobarColor "#505050" ""
+    , ppUrgent          = xmobarColor "#E34E25" ""
+    , ppSep             = xmobarColor "#FEFEFE" "" "   "
+    , ppTitle           = wrap (xmobarColor"#FEB300" "" "<") (xmobarColor "#FEB300" "" ">") . shorten 60
+}
 
 -- key bindings
 -- emacs-like notation
 keyBinds = [
-      ("M-<F1>" , safeSpawn "sudo"      ["pm-suspend"])                         -- equivalent of Fn-<F1> (for external keyboard)
-    , ("M-q"    , safeSpawn "xmonad"    ["--restart"])                          -- rebuild and restart xmonad
-    , ("M-f"    , safeSpawn "firefox-nightly" ["-p", "nightly"])
-    , ("M-S-e"  , safeSpawn "gvim"      ["/home/dweller/.xmonad/xmonad.hs"])    -- edit config
+      ("M-q"        , safeSpawn "xmonad"    ["--restart"])
+    , ("M-S-e"      , safeSpawn "gvim"      ["/home/dweller/.xmonad/xmonad.hs"])
+    , ("M-S-Enter"  , safeSpawn termEmulator [])
 
-    , ("M-p"    , shellPrompt promptConfig)                     -- start apps
+    , ("M-p"        , shellPrompt promptConfig) -- dmenu-like prompt
+    , ("M-S-p"      , sshPrompt promptConfig)   -- ssh prompt
 
-    , ("M-e"    , runInTerm "" "mc $HOME")
-    , ("M-m"    , runInTerm "" "ncmpc")
-    , ("M-h"    , runInTerm "" "htop")
 
+    , ("M-f"        , safeSpawn "luakit"   [])
+    , ("M-S-f"      , safeSpawn "firefox" ["-private"])
+
+    , ("M-e"        , runInTerm "" "$HOME/.xmonad/scripts/tmux_wrapper mc mc")
+    , ("M-m"        , runInTerm "" "$HOME/.xmonad/scripts/tmux_wrapper cmus cmus")
+    , ("M-h"        , runInTerm "" "top")
+    , ("<Print>"    , safeSpawn "scrot" [])
+    , ("M-S-l"      , safeSpawn "xlock" ["-mode", "grav"])
+    , ("M-="        , nextWS)
+    , ("M--"        , prevWS)
     -- xmonad specific
     --
-    , ("M-S-=", sendMessage Expand)
-    , ("M-S--", sendMessage Shrink)
-    , ("M-b"  , sendMessage ToggleStruts)
+    , ("M-S-="      , sendMessage Expand)
+    , ("M-S--"      , sendMessage Shrink)
+    , ("M-b"        , sendMessage ToggleStruts)
 
     -- notebook specific
     -- lvds backlight (external keyboard)
     , ("M-S-<Up>"   , safeSpawn "xbacklight" ["-inc", "10"])
     , ("M-S-<Down>" , safeSpawn "xbacklight" ["-dec", "10"])
-    
-    -- audio buttons
-    , ("M-<Home>"   , safeSpawn "mpc" ["prev"])
-    , ("M-<End>"    , safeSpawn "mpc" ["stop"])
-    , ("M-<Insert>" , safeSpawn "mpc" ["toggle"])
-    , ("M-<Delete>" , safeSpawn "mpc" ["next"])
+
+    -- mixer options (FreeBSD specific)
+    --, ("<XF86AudioLowerVolume>",    safeSpawn "mixer" ["vol", "-5"])
+    --, ("<XF86AudioRaiseVolume>",    safeSpawn "mixer" ["vol", "+5"])
+    --, ("<XF86AudioMute>",           safeSpawn "mixer" ["vol", "0"])
+
+    -- mixer options (Linux specific)
+    , ("<XF86AudioLowerVolume>",    safeSpawn "amixer" ["-q", "set", "Master", "1%-"])
+    , ("<XF86AudioRaiseVolume>",    safeSpawn "amixer" ["-q", "set", "Master", "1%+"])
+    , ("<XF86AudioMute>",           safeSpawn "amixer" ["-q", "set", "Master", "toggle"])
 
 
+    , ("M-<XF86AudioLowerVolume>",  safeSpawn "cmus-remote" ["-r"]) -- prev track
+    , ("M-<XF86AudioRaiseVolume>",  safeSpawn "cmus-remote" ["-n"]) -- next track
+
+    , ("M-<XF86AudioMute>",         safeSpawn "cmus-remote" ["-u"]) -- toggle play
+    , ("<XF86AudioPlay>",         safeSpawn "cmus-remote" ["-u"]) -- toggle play
     ]
 
--- xmonad notation
-keyMedia = [
---      ((0      , 0x1008ff11), spawn "amixer -q set Master 1%-")    -- XF86AudioLowerVolume
---    , ((0      , 0x1008ff13), spawn "amixer -q set Master 1%+")    -- XF86AudioRaiseVolume
---    , ((0      , 0x1008ff12), spawn "amixer -q set Master toggle") -- XF86AudioMute
---      ((modKey , 0x1008ff11), spawn "mpc prev")                    -- mpd Prev (binded to modKey-XF86AudioLowerVolume)
---    , ((modKey , 0x1008ff13), spawn "mpc next")                    -- mpd Next (binded to modKey-XF86AudioRaiseVolume)
---    , ((modKey , 0x1008ff12), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioMute)
---    , ((0      , 0x1008ff14), spawn "mpc toggle")                  -- mpd Play/Pause (XF86AudioPlay)
-    ]
