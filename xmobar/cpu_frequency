@@ -1,0 +1,11 @@
+#!/bin/sh
+OS=`uname -s`
+
+if [ $OS == "FreeBSD" ]; then
+    CPUFREQ=`sysctl -n dev.cpu.0.freq`
+    CPUFREQ="$CPUFREQMHz"
+elif [ $OS == "Linux" ]; then
+    echo
+fi
+
+echo -n "${CPUFREQ}W"

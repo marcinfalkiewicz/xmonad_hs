@@ -1,0 +1,35 @@
+#!/bin/sh
+
+STEP=5
+case "`uname`" in
+    Linux)
+        raise() { amixer -q set Master "$STEP+"; }
+        lower() { amixer -q set Master "$STEP-"; }
+        toogle() { amixer -q set Master toggle; }
+    ;;
+    FreeBSD)
+        MIXER=/usr/sbin/mixer
+        MIXER_SAVE=~/.mixer-mute.state
+        touch $MIXER_SAVE
+
+        raise() { $MIXER vol "+$STEP"; }
+        lower() { $MIXER vol "-$STEP"; }
+        toggle() {
+            VOL=`$MIXER -s vol`
+            case "$VOL" in
+                "vol 0:0")
+                    raise
+                    $MIXER `cat $MIXER_SAVE`
+                ;;
+                *)
+                    echo "$VOL" > $MIXER_SAVE
+                    $MIXER vol mute
+                ;;
+            esac
+        }
+    ;;
+    *)
+        usage
+    ;;
+esac
+

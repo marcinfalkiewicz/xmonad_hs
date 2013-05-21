@@ -1,0 +1,10 @@
+#!/bin/sh
+
+DEVICE=$(lspci -d 10de:)
+
+case ${DEVICE} in
+    `false`)
+        ;;
+    *)
+        echo "gpu-over-expresscard"  ;;
+esac

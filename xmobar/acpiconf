@@ -1,0 +1,12 @@
+#!/bin/sh
+OS=`uname -s`
+
+if [ $OS == "FreeBSD" ]; then
+    RATE=`acpiconf -i 0 | awk '/mW/ { printf("%d", substr($5,2)) }'`
+    BATTERY_RATE=`expr ${RATE} / 1000`
+elif [ $OS == "Linux" ]; then
+    RATE=`cat /sys/class/power_supply/BAT0/current_now`
+    BATTERY_RATE=`expr ${RATE} / 100000`
+fi
+
+echo -n "${BATTERY_RATE}W"
